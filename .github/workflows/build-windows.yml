@@ -1,0 +1,50 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack install
+
+      - name: Read pinned Rust toolchain
+        id: rust-toolchain
+        shell: pwsh
+        run: |
+          $toolchain = Select-String -Path rust-toolchain.toml -Pattern '^channel\s*=\s*"([^"]+)"'
+          "channel=$($toolchain.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.channel }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build EXE
+        run: pnpm tauri build --no-bundle
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v7
+        with:
+          name: CC-Switch-Windows-x64
+          path: src-tauri/target/release/cc-switch.exe
+          if-no-files-found: error
+          retention-days: 14
