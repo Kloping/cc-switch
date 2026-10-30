@@ -329,4 +329,43 @@ describe("ProviderCard Codex Official account identity", () => {
       screen.queryByText("账号会随 Codex CLI 当前登录变化"),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the first configured Codex models and truncates the rest", () => {
+    renderCard({
+      id: "codex-models",
+      name: "Model provider",
+      settingsConfig: {
+        auth: {},
+        config: 'model = "gpt-5.6-sol"',
+        modelCatalog: {
+          models: [
+            { model: "gpt-5.6-terra", displayName: "Terra" },
+            { model: "gpt-5.6-sol" },
+            { model: "gpt-5.6-luna" },
+            { model: "gpt-5.6-aurora" },
+          ],
+        },
+      },
+    });
+
+    expect(screen.getByText("Terra")).toBeInTheDocument();
+    expect(screen.getByText("gpt-5.6-sol")).toBeInTheDocument();
+    expect(screen.getByText("gpt-5.6-luna")).toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+    expect(screen.queryByText("gpt-5.6-aurora")).not.toBeInTheDocument();
+    expect(screen.queryByText("4 个模型")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the top-level Codex model when the catalog is empty", () => {
+    renderCard({
+      id: "codex-default-model",
+      name: "Default model provider",
+      settingsConfig: {
+        auth: {},
+        config: 'model = "gpt-5.6-sol"',
+      },
+    });
+
+    expect(screen.getByText("gpt-5.6-sol")).toBeInTheDocument();
+  });
 });
