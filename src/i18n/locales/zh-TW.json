@@ -2045,6 +2045,10 @@
     "subagentReasoningEffortDefault": "預設強度",
     "subagentModelHint": "Codex 派出的子代理預設使用的模型和推理強度。留空時沿用主代理的；只填模型時使用該模型自己的預設強度。聚合模式下不生效，改用聚合頁籤「聚合設定」裡的子代理模型。",
     "subagentModelNotInCatalog": "該模型不在模型列表中：Codex 取得不到它的上下文視窗；經路由轉成 Chat / Anthropic 協定時會被換成預設模型。",
+    "agentMaxThreadsLabel": "子代理並行上限",
+    "agentMaxThreadsHint": "一個 Codex 會話裡最多同時開多少個子代理（不含主代理）。這是 Codex 的全域設定，寫進 config.toml 的 [agents] max_threads，切換供應商時保持不變。留空用 Codex 預設值：經典子 agent 工具 6 個，新版工具 3 個。Codex 不支援不限，最小為 1；開得越多，同時消耗的額度越多。重新開啟 Codex 後生效。",
+    "agentMaxThreadsPlaceholder": "留空則用 Codex 預設值",
+    "agentMaxThreadsV2Override": "config.toml 的 [features.multi_agent_v2] 寫了總數 {{total}}（含主代理），使用新版子 agent 工具時以它為準。",
     "autoReviewModelLabel": "自動審批模型",
     "autoReviewModelHint": "Codex 開了自動審批（Approve for me）時，判斷操作能不能放行所用的模型。審批請求和主對話發給同一家，所以只能選這張卡模型列表裡的。聚合模式下不生效，改用聚合頁籤「聚合設定」裡的自動審批模型。修改後需要重新啟動 Codex。",
     "autoReviewModelCodexDefault": "Codex 預設（codex-auto-review）",
@@ -2185,6 +2189,7 @@
     "universalDetail": "同步到 Claude Code、Codex、Gemini CLI",
     "manageUniversal": "管理現有的統一供應商 ›",
     "loginWith": {
+      "deepseek": "使用 DeepSeek 帳號登入",
       "kimi": "使用 Kimi 帳號登入",
       "claude": "用 Claude 帳號登入",
       "chatgpt": "用 ChatGPT 帳號登入",
@@ -4970,7 +4975,11 @@
       "open": "開啟授權頁面",
       "note": "已在瀏覽器開啟授權頁面，完成後這裡會自動更新。注意 {{service}} 的使用條款。",
       "browserNote": "已在瀏覽器開啟 {{service}} 的登入頁，登入並同意授權後這裡會自動更新。",
-      "reopen": "重新開啟登入頁"
+      "reopen": "重新開啟登入頁",
+      "copyLink": "複製登入連結",
+      "linkCopied": "登入連結已複製。",
+      "linkNote": "登入連結已複製。在你要用的瀏覽器裡開啟，登入並同意授權後這裡會自動更新。",
+      "linkCodeNote": "登入連結已複製。在你要用的瀏覽器裡開啟並輸入驗證碼，完成後這裡會自動更新。注意 {{service}} 的使用條款。"
     },
     "toast": {
       "added": "已新增 {{service}} 帳號。",
@@ -5008,6 +5017,10 @@
       "empty": "還沒有新增 Claude 帳號。要在多個訂閱帳號之間切換時在這裡登入。",
       "removeNote": "只刪除 CC Switch 為這個帳號儲存的登入，不會讓它在其他地方登出；Claude Code 目前的登入（~/.claude）不受影響。綁定它的卡片會改用 Claude Code 目前的登入。",
       "wslUnsupported": "Claude 設定目錄在 WSL 裡，暫不支援新增和切換 Claude 帳號。"
+    },
+    "openBrowser": {
+      "title": "登入時自動開啟瀏覽器",
+      "description": "關掉後只複製登入連結，由你自己選瀏覽器開啟，適合用獨立的瀏覽器環境管理多個帳號。"
     }
   },
   "kimi": {

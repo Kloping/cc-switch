@@ -2045,6 +2045,10 @@
     "subagentReasoningEffortDefault": "默认强度",
     "subagentModelHint": "Codex 派出的子代理默认用的模型和推理强度。留空时沿用主代理的；只填模型时用该模型自己的默认强度。聚合模式下不生效，改用聚合页签「聚合设置」里的子代理模型。",
     "subagentModelNotInCatalog": "该模型不在模型列表中：Codex 拿不到它的上下文窗口；经路由转成 Chat / Anthropic 协议时会被换成默认模型。",
+    "agentMaxThreadsLabel": "子代理并发上限",
+    "agentMaxThreadsHint": "一个 Codex 会话里最多同时开多少个子代理（不含主代理）。这是 Codex 的全局设置，写进 config.toml 的 [agents] max_threads，切换供应商时保持不变。留空用 Codex 默认值：经典子 agent 工具 6 个，新版工具 3 个。Codex 不支持不限，最小为 1；开得越多，同时消耗的额度越多。重新打开 Codex 后生效。",
+    "agentMaxThreadsPlaceholder": "留空则用 Codex 默认值",
+    "agentMaxThreadsV2Override": "config.toml 的 [features.multi_agent_v2] 写了总数 {{total}}（含主代理），使用新版子 agent 工具时以它为准。",
     "autoReviewModelLabel": "自动审批模型",
     "autoReviewModelHint": "Codex 开了自动审批（Approve for me）时，判断操作能不能放行用的模型。审批请求和主对话发给同一家，所以只能选这张卡模型列表里的。聚合模式下不生效，改用聚合页签「聚合设置」里的自动审批模型。改完需要重启 Codex。",
     "autoReviewModelCodexDefault": "Codex 默认（codex-auto-review）",
@@ -2184,6 +2188,7 @@
     "universalDetail": "同步到 Claude Code、Codex、Gemini CLI",
     "manageUniversal": "管理已有的统一供应商 ›",
     "loginWith": {
+      "deepseek": "用 DeepSeek 账号登录",
       "kimi": "使用 Kimi 账号登录",
       "claude": "用 Claude 账号登录",
       "chatgpt": "用 ChatGPT 账号登录",
@@ -4969,7 +4974,11 @@
       "open": "打开授权页面",
       "note": "已在浏览器打开授权页面，完成后这里会自动更新。注意 {{service}} 的使用条款。",
       "browserNote": "已在浏览器打开 {{service}} 的登录页，登录并同意授权后这里会自动更新。",
-      "reopen": "重新打开登录页"
+      "reopen": "重新打开登录页",
+      "copyLink": "复制登录链接",
+      "linkCopied": "登录链接已复制。",
+      "linkNote": "登录链接已复制。在你要用的浏览器里打开，登录并同意授权后这里会自动更新。",
+      "linkCodeNote": "登录链接已复制。在你要用的浏览器里打开并输入验证码，完成后这里会自动更新。注意 {{service}} 的使用条款。"
     },
     "toast": {
       "added": "已添加 {{service}} 账号。",
@@ -5007,6 +5016,10 @@
       "empty": "还没有添加 Claude 账号。要在多个订阅账号之间切换时在这里登录。",
       "removeNote": "只删除 CC Switch 为这个账号保存的登录，不会让它在其他地方退出；Claude Code 现在的登录（~/.claude）不受影响。绑定它的卡片会改用 Claude Code 现在的登录。",
       "wslUnsupported": "Claude 配置目录在 WSL 里，暂不支持添加和切换 Claude 账号。"
+    },
+    "openBrowser": {
+      "title": "登录时自动打开浏览器",
+      "description": "关掉后只复制登录链接，由你自己选浏览器打开，适合用独立的浏览器环境管理多个账号。"
     }
   },
   "kimi": {
