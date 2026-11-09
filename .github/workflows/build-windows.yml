@@ -138,25 +138,25 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
+      # 用 bash 调用：pwsh 经 pnpm 的 cmd/ps1 shim 转发参数时会把参数拆坏
       - name: Build Tauri App
-        shell: pwsh
+        shell: bash
         env:
           TARGET: ${{ matrix.target }}
           INSTALLER: ${{ inputs.installer || 'none' }}
         run: |
-          $ErrorActionPreference = 'Stop'
+          set -euo pipefail
           # 没有签名私钥：不生成 updater 产物（.sig）
-          $ciConfig = Join-Path $env:RUNNER_TEMP 'tauri.build-windows.conf.json'
-          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $ciConfig -Encoding utf8NoBOM
-          $bundleArgs = switch ($env:INSTALLER) {
-            'none' { @('--no-bundle') }
-            'msi' { @('--bundles', 'msi') }
-            'nsis' { @('--bundles', 'nsis') }
-            'all' { @('--bundles', 'msi,nsis') }
-            default { throw "Unknown installer: $env:INSTALLER" }
-          }
-          pnpm tauri build --target $env:TARGET --config $ciConfig @bundleArgs
-          if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
+          ci_config="$RUNNER_TEMP/tauri.build-windows.conf.json"
+          echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$ci_config"
+          case "$INSTALLER" in
+            none) bundle_args=(--no-bundle) ;;
+            msi) bundle_args=(--bundles msi) ;;
+            nsis) bundle_args=(--bundles nsis) ;;
+            all) bundle_args=(--bundles msi,nsis) ;;
+            *) echo "::error::Unknown installer: $INSTALLER"; exit 1 ;;
+          esac
+          pnpm tauri build --target "$TARGET" --config "$ci_config" "${bundle_args[@]}"
 
       - name: Collect artifacts
         shell: pwsh
