@@ -36,6 +36,7 @@ import KimiAccountQuotaFooter from "@/components/KimiAccountQuotaFooter";
 import { PROVIDER_TYPES, TEMPLATE_TYPES } from "@/config/constants";
 import {
   extractCodexExperimentalBearerToken,
+  extractCodexModelName,
   extractProviderBaseUrl,
 } from "@/utils/providerConfigUtils";
 import { resolveManagedAccountId } from "@/lib/authBinding";
@@ -175,6 +176,27 @@ function extractAgyModel(provider: Provider): string | null {
     : null;
 }
 
+const CODEX_CARD_MODEL_LIMIT = 2;
+
+/** Codex 卡片在名字后面带上前两个模型 id：先取模型目录，没有目录时取 config.toml 的 model。 */
+export function extractCodexCardModelIds(provider: Provider): string[] {
+  const config = provider.settingsConfig as Record<string, any>;
+  const catalog = config?.modelCatalog?.models;
+  const ids: string[] = [];
+  if (Array.isArray(catalog)) {
+    for (const row of catalog) {
+      const id = typeof row?.model === "string" ? row.model.trim() : "";
+      if (id && !ids.includes(id)) ids.push(id);
+      if (ids.length >= CODEX_CARD_MODEL_LIMIT) return ids;
+    }
+  }
+  if (ids.length === 0 && typeof config?.config === "string") {
+    const model = extractCodexModelName(config.config)?.trim();
+    if (model) ids.push(model);
+  }
+  return ids;
+}
+
 const extractApiUrl = (provider: Provider, fallbackText: string) => {
   if (provider.notes?.trim()) {
     return provider.notes.trim();
@@ -247,6 +269,11 @@ export function ProviderCard({
 
   const agyModel = useMemo(
     () => (appId === "agy" ? extractAgyModel(provider) : null),
+    [appId, provider],
+  );
+
+  const codexModelIds = useMemo(
+    () => (appId === "codex" ? extractCodexCardModelIds(provider) : []),
     [appId, provider],
   );
 
@@ -445,6 +472,16 @@ export function ProviderCard({
             >
               {provider.name}
             </h3>
+            {codexModelIds.map((modelId) => (
+              <span
+                key={modelId}
+                title={modelId}
+                data-testid="codex-card-model"
+                className="inline-flex h-[18px] min-w-0 max-w-[120px] shrink items-center rounded-full border border-border-strong px-1.5 text-badge text-fg-2"
+              >
+                <span className="min-w-0 truncate">{modelId}</span>
+              </span>
+            ))}
             {presentation.chips.map((chip) => (
               <CardChipBadge key={chip.key} chip={chip} />
             ))}
