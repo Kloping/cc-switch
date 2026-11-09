@@ -472,16 +472,6 @@ export function ProviderCard({
             >
               {provider.name}
             </h3>
-            {codexModelIds.map((modelId) => (
-              <span
-                key={modelId}
-                title={modelId}
-                data-testid="codex-card-model"
-                className="inline-flex h-[18px] min-w-0 max-w-[120px] shrink items-center rounded-full border border-border-strong px-1.5 text-badge text-fg-2"
-              >
-                <span className="min-w-0 truncate">{modelId}</span>
-              </span>
-            ))}
             {presentation.chips.map((chip) => (
               <CardChipBadge key={chip.key} chip={chip} />
             ))}
@@ -612,6 +602,21 @@ export function ProviderCard({
             </button>
           ) : null}
         </div>
+
+        {appId === "codex" && (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            {codexModelIds.map((modelId) => (
+              <span
+                key={modelId}
+                title={modelId}
+                data-testid="codex-card-model"
+                className="inline-flex h-[18px] min-w-0 shrink items-center rounded-full border border-border-strong px-1.5 text-badge text-fg-2"
+              >
+                <span className="min-w-0 truncate">{modelId}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="flex shrink-0 items-center gap-3">
           {/* 额度列 136 宽，带重置倒计时时 194 宽（见 QuotaLines） */}

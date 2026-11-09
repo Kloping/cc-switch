@@ -82,7 +82,7 @@ const modelChips = () =>
   screen.queryAllByTestId("codex-card-model").map((el) => el.textContent);
 
 describe("ProviderCard Codex model ids", () => {
-  it("shows the first two catalog model ids next to the name", () => {
+  it("shows the first two catalog model ids in the middle column", () => {
     renderCard(relay);
     expect(modelChips()).toEqual(["deepseek-v4", "kimi-k3"]);
     expect(screen.getByTitle("kimi-k3")).toBeInTheDocument();
