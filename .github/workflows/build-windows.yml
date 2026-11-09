@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-windows-${{ github.ref }}-${{ inputs.arch || 'x64' }}-${{ inputs.installer || 'none' }}
+  group: build-windows-${{ github.ref }}-${{ inputs.arch || 'all' }}-${{ inputs.installer || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
       - name: Resolve architectures
         id: resolve
         env:
-          ARCH: ${{ inputs.arch || 'x64' }}
+          ARCH: ${{ inputs.arch || 'all' }}
         run: |
           set -euo pipefail
           x64='{"arch":"x64","os":"windows-2022","target":"x86_64-pc-windows-msvc"}'
@@ -143,7 +143,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-          INSTALLER: ${{ inputs.installer || 'none' }}
+          INSTALLER: ${{ inputs.installer || 'all' }}
         run: |
           set -euo pipefail
           # 没有签名私钥：不生成 updater 产物（.sig）
