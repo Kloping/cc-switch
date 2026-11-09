@@ -3,8 +3,6 @@ name: Build Windows EXE
 # 手动触发：编译 Windows 版 cc-switch.exe，产物只留在 workflow 里（Artifacts），不建 Release。
 # 不需要任何签名密钥：关掉 updater 产物（.sig），所以没有 TAURI_SIGNING_PRIVATE_KEY 也能编。
 on:
-  push:
-    branches: [devin/*-windows-exe-workflow] # TEMP: CI 验证用，合并前删掉
   workflow_dispatch:
     inputs:
       arch:
@@ -29,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-windows-${{ github.ref }}-${{ inputs.arch || 'all' }}-${{ inputs.installer || 'all' }}
+  group: build-windows-${{ github.ref }}-${{ inputs.arch || 'x64' }}-${{ inputs.installer || 'none' }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +40,7 @@ jobs:
       - name: Resolve architectures
         id: resolve
         env:
-          ARCH: ${{ inputs.arch || 'all' }}
+          ARCH: ${{ inputs.arch || 'x64' }}
         run: |
           set -euo pipefail
           x64='{"arch":"x64","os":"windows-2022","target":"x86_64-pc-windows-msvc"}'
@@ -143,7 +141,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-          INSTALLER: ${{ inputs.installer || 'all' }}
+          INSTALLER: ${{ inputs.installer || 'none' }}
         run: |
           set -euo pipefail
           # 没有签名私钥：不生成 updater 产物（.sig）
