@@ -1,0 +1,198 @@
+name: Build Windows EXE
+
+# 手动触发：编译 Windows 版 cc-switch.exe，产物只留在 workflow 里（Artifacts），不建 Release。
+# 不需要任何签名密钥：关掉 updater 产物（.sig），所以没有 TAURI_SIGNING_PRIVATE_KEY 也能编。
+on:
+  push:
+    branches: [devin/*-windows-exe-workflow] # TEMP: CI 验证用，合并前删掉
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "架构"
+        type: choice
+        options:
+          - x64
+          - arm64
+          - all
+        default: x64
+      installer:
+        description: "额外打安装包（none = 只要 exe）"
+        type: choice
+        options:
+          - none
+          - msi
+          - nsis
+          - all
+        default: none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-${{ github.ref }}-${{ inputs.arch || 'x64' }}-${{ inputs.installer || 'none' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    name: Resolve matrix
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.resolve.outputs.include }}
+    steps:
+      - name: Resolve architectures
+        id: resolve
+        env:
+          ARCH: ${{ inputs.arch || 'x64' }}
+        run: |
+          set -euo pipefail
+          x64='{"arch":"x64","os":"windows-2022","target":"x86_64-pc-windows-msvc"}'
+          arm64='{"arch":"arm64","os":"windows-11-arm","target":"aarch64-pc-windows-msvc"}'
+          case "$ARCH" in
+            x64) include="[$x64]" ;;
+            arm64) include="[$arm64]" ;;
+            all) include="[$x64,$arm64]" ;;
+            *) echo "::error::Unknown arch: $ARCH"; exit 1 ;;
+          esac
+          echo "include=$include" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Windows (${{ matrix.arch }})
+    needs: matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      # rust-toolchain.toml 是编译器版本的唯一来源
+      - name: Read pinned Rust toolchain
+        id: rust-toolchain
+        shell: bash
+        run: |
+          channel=$(sed -nE 's/^channel *= *"([^"]+)".*/\1/p' rust-toolchain.toml)
+          test -n "$channel"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.channel }}
+          targets: ${{ matrix.target }}
+
+      - name: Setup LLVM for Windows ARM64
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $llvmRoot = 'C:\Program Files\LLVM'
+          if (-not (Test-Path $llvmRoot)) {
+            throw "LLVM not found at $llvmRoot"
+          }
+          $llvmBin = Join-Path $llvmRoot 'bin'
+          "LIBCLANG_PATH=$llvmBin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CLANG_PATH=$(Join-Path $llvmBin 'clang.exe')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Setup pnpm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          corepack enable
+          corepack install
+          node --version
+          pnpm --version
+
+      - name: Get pnpm store directory
+        if: matrix.arch != 'arm64'
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm cache
+        if: matrix.arch != 'arm64'
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
+
+      - name: Setup Cargo cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-build-windows-${{ hashFiles('src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.arch }}-cargo-build-windows-
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri App
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          INSTALLER: ${{ inputs.installer || 'none' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 没有签名私钥：不生成 updater 产物（.sig）
+          $ciConfig = Join-Path $env:RUNNER_TEMP 'tauri.build-windows.conf.json'
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $ciConfig -Encoding utf8NoBOM
+          $bundleArgs = switch ($env:INSTALLER) {
+            'none' { @('--no-bundle') }
+            'msi' { @('--bundles', 'msi') }
+            'nsis' { @('--bundles', 'nsis') }
+            'all' { @('--bundles', 'msi,nsis') }
+            default { throw "Unknown installer: $env:INSTALLER" }
+          }
+          pnpm tauri build --target $env:TARGET --config $ciConfig @bundleArgs
+          if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
+
+      - name: Collect artifacts
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseDir = "src-tauri/target/$env:TARGET/release"
+          $out = 'build-artifacts'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          $exe = Join-Path $releaseDir 'cc-switch.exe'
+          if (-not (Test-Path $exe)) { throw "cc-switch.exe not found under $releaseDir" }
+          Copy-Item $exe $out
+
+          # 绿色版：exe + portable.ini 打 zip（数据放在 exe 旁边）
+          $portableDir = Join-Path $env:RUNNER_TEMP 'CC-Switch-Portable'
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item $exe $portableDir
+          $portableContent = @('# CC Switch portable build marker', 'portable=true')
+          if ($env:ARCH -eq 'arm64') { $portableContent += 'arch=arm64' }
+          $portableContent | Set-Content -Path (Join-Path $portableDir 'portable.ini') -Encoding UTF8
+          Compress-Archive -Path "$portableDir/*" -DestinationPath (Join-Path $out "CC-Switch-Windows-$env:ARCH-Portable.zip") -Force
+
+          $bundleDir = Join-Path $releaseDir 'bundle'
+          if (Test-Path $bundleDir) {
+            Get-ChildItem -Path $bundleDir -Recurse -Include *.msi, *-setup.exe | ForEach-Object {
+              Copy-Item $_.FullName $out
+            }
+          }
+          Get-ChildItem $out | Format-Table Name, Length
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: cc-switch-windows-${{ matrix.arch }}-${{ github.sha }}
+          path: build-artifacts/*
+          if-no-files-found: error
