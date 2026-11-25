@@ -197,6 +197,9 @@ export const handlers = [
     });
   }),
 
+  http.post(`${TAURI_ENDPOINT}/cancel_session_content_search`, () =>
+    success(null),
+  ),
   http.post(`${TAURI_ENDPOINT}/clear_session_index`, () => success(true)),
 
   http.post(`${TAURI_ENDPOINT}/get_session_messages`, async ({ request }) => {
@@ -643,6 +646,15 @@ export const handlers = [
       current: false,
       unavailable: "not_running",
       error: null,
+    }),
+  ),
+  // 授权中心的 CodeBuddy 分区一打开就读本机登录状态：默认没装 / 没登录
+  http.post(`${TAURI_ENDPOINT}/codebuddy_account_live`, () =>
+    success({
+      state: "none",
+      account_id: null,
+      label: null,
+      domain: null,
     }),
   ),
 ];

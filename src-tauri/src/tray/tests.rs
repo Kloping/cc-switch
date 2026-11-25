@@ -805,6 +805,171 @@ fn claude_bound_provider(account_id: Option<&str>, enabled: Option<bool>) -> Pro
     .unwrap()
 }
 
+fn grok_official_provider(account_id: Option<&str>, enabled: Option<bool>) -> Provider {
+    serde_json::from_value(serde_json::json!({
+        "id": "grok-bound",
+        "name": "Grok Official",
+        "settingsConfig": {"config": ""},
+        "category": "official",
+        "meta": {
+            "authBinding": account_id.map(|id| serde_json::json!({
+                "source": "managed_account",
+                "authProvider": "xai_oauth",
+                "accountId": id
+            })),
+            "usage_script": enabled.map(|enabled| serde_json::json!({
+                "enabled": enabled,
+                "language": "javascript",
+                "code": "",
+                "templateType": "official_subscription"
+            }))
+        }
+    }))
+    .unwrap()
+}
+
+#[test]
+fn grok_bound_card_tray_usage_defaults_on_and_reads_its_account() {
+    for enabled in [Some(true), None] {
+        assert_eq!(
+            tray_usage_source(
+                &AppType::GrokBuild,
+                &grok_official_provider(Some(" user-1 "), enabled)
+            ),
+            Some(TrayUsageSource::XaiAccount("user-1".to_string()))
+        );
+    }
+    assert_eq!(
+        tray_usage_source(
+            &AppType::GrokBuild,
+            &grok_official_provider(Some("user-1"), Some(false))
+        ),
+        None
+    );
+    // 没绑账号的官方卡照旧读 Grok CLI 登录的订阅缓存
+    assert_eq!(
+        tray_usage_source(
+            &AppType::GrokBuild,
+            &grok_official_provider(None, Some(true))
+        ),
+        Some(TrayUsageSource::Subscription)
+    );
+}
+
+#[test]
+fn grok_bound_card_tray_quota_comes_from_the_account_cache_only() {
+    let cache = UsageCache::new();
+    let texts = TrayTexts::from_language("zh");
+    let source = TrayUsageSource::XaiAccount("user-1".to_string());
+    // 应用级订阅缓存里有别人的额度，也不能拿来显示
+    let mut other = crate::services::subscription::SubscriptionQuota::not_found("grokbuild");
+    other.success = true;
+    cache.put_subscription(AppType::GrokBuild, other);
+    assert!(cached_usage_view(
+        &cache,
+        &texts,
+        &AppType::GrokBuild,
+        "grok-bound",
+        Some(&source)
+    )
+    .is_none());
+}
+
+fn xai_oauth_provider(account_id: Option<&str>, enabled: Option<bool>) -> Provider {
+    serde_json::from_value(serde_json::json!({
+        "id": "codex-xai",
+        "name": "xAI (Grok) OAuth",
+        "settingsConfig": {"auth": {}, "config": ""},
+        "category": "third_party",
+        "meta": {
+            "providerType": "xai_oauth",
+            "authBinding": account_id.map(|id| serde_json::json!({
+                "source": "managed_account",
+                "authProvider": "xai_oauth",
+                "accountId": id
+            })),
+            "usage_script": enabled.map(|enabled| serde_json::json!({
+                "enabled": enabled,
+                "language": "javascript",
+                "code": "",
+                "templateType": "official_subscription"
+            }))
+        }
+    }))
+    .unwrap()
+}
+
+/// #9899：Codex（含聚合成员）里的 xAI OAuth 卡，托盘按它的 xAI 账号读卡片查到的额度，
+/// 不再要求另开用量脚本。
+#[test]
+fn xai_oauth_card_tray_quota_reads_its_account_cache() {
+    for app in [AppType::Codex, AppType::Claude] {
+        for enabled in [None, Some(true)] {
+            assert_eq!(
+                tray_usage_source(&app, &xai_oauth_provider(Some(" xai-1 "), enabled)),
+                Some(TrayUsageSource::XaiAccount("xai-1".to_string()))
+            );
+        }
+        assert_eq!(
+            tray_usage_source(&app, &xai_oauth_provider(Some("xai-1"), Some(false))),
+            None
+        );
+    }
+
+    let cache = UsageCache::new();
+    let source = tray_usage_source(&AppType::Codex, &xai_oauth_provider(Some("xai-1"), None));
+    let view = || cached_usage_view(&cache, &en(), &AppType::Codex, "codex-xai", source.as_ref());
+    assert_eq!(view(), None);
+    cache.put_xai_account(
+        "xai-1".to_string(),
+        make_quota("xai_oauth", true, vec![tier(TIER_FIVE_HOUR, 25.0)]),
+    );
+    assert_eq!(
+        title(view()).map(|(text, _)| text).as_deref(),
+        Some("5-hour 75% left")
+    );
+}
+
+#[test]
+fn grok_official_card_hint_shows_only_its_bound_account() {
+    let accounts = TrayAccountLabels {
+        xai: ManagedAccountLabels::from_parts((
+            HashMap::from([
+                ("xai-default".to_string(), "default@x.ai".to_string()),
+                ("user-1".to_string(), "bound@x.ai".to_string()),
+            ]),
+            Some("xai-default".to_string()),
+        )),
+        ..Default::default()
+    };
+    let with_site = |mut provider: Provider| {
+        provider.website_url = Some("https://x.ai/grok".to_string());
+        provider
+    };
+
+    let mut bound = with_site(grok_official_provider(Some(" user-1 "), None));
+    assert_eq!(
+        provider_hint(&AppType::GrokBuild, &bound, &accounts).as_deref(),
+        Some("bound@x.ai")
+    );
+    bound.notes = Some("Personal".to_string());
+    assert_eq!(
+        provider_hint(&AppType::GrokBuild, &bound, &accounts).as_deref(),
+        Some("Personal")
+    );
+
+    // 绑定的账号已删除、或没绑账号（跟随 Grok CLI 登录）：不回落授权中心默认账号
+    for provider in [
+        grok_official_provider(Some("deleted"), None),
+        grok_official_provider(None, None),
+    ] {
+        assert_eq!(
+            provider_hint(&AppType::GrokBuild, &with_site(provider), &accounts).as_deref(),
+            Some("x.ai")
+        );
+    }
+}
+
 #[test]
 fn claude_bound_card_hint_shows_account_unless_noted() {
     let accounts = TrayAccountLabels {
@@ -1387,12 +1552,13 @@ fn cli_subscription_tray_reads_the_cache_the_card_writes() {
         Some("5-hour 75% left")
     );
 
-    // xAI OAuth 的额度属于绑定的 SuperGrok 账号：仍走脚本路径，也不沿用应用级订阅缓存。
+    // xAI OAuth 的额度属于 SuperGrok 账号：不沿用应用级订阅缓存（没绑账号时按授权中心的
+    // 默认账号取，一个账号都没有时退回脚本路径，取决于本机，这里不断言是哪一种）。
     let mut xai = codex_provider(None, Some(true));
     xai.meta.as_mut().unwrap().provider_type = Some("xai_oauth".to_string());
-    assert_eq!(
+    assert_ne!(
         tray_usage_source(&AppType::Claude, &xai),
-        Some(TrayUsageSource::Script)
+        Some(TrayUsageSource::Subscription)
     );
     assert_eq!(
         title(usage_view(&cache, &en(), &AppType::Claude, &xai, "xai")),
